@@ -4,6 +4,7 @@ from typing import List
 
 from app.db.session import get_db
 from app.repositories.order_repo import OrderRepository
+from app.repositories.item_repo import ItemRepository
 from app.services.order_service import OrderService
 from app.schemas.order import OrderCreate, OrderRead, OrderPatch
 
@@ -11,7 +12,7 @@ router = APIRouter(prefix="/orders", tags=["Orders"])
 
 
 def get_order_service(db: AsyncSession = Depends(get_db)):
-    return OrderService(OrderRepository(db))
+    return OrderService(order_repo=OrderRepository(db), item_repo=ItemRepository(db))
 
 
 @router.post("/", response_model=OrderRead)

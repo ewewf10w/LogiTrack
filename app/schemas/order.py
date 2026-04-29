@@ -1,5 +1,13 @@
-from pydantic import BaseModel, Field, model_validator
-from typing import Optional
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+from typing import List, Optional
+
+
+class ItemBase(BaseModel):
+    id: int
+    name: str
+    price: int
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class OrderBase(BaseModel):
@@ -15,7 +23,7 @@ class OrderBase(BaseModel):
 
 
 class OrderCreate(OrderBase):
-    pass
+    item_ids: List[int]
 
 
 class OrderRead(OrderBase):
@@ -25,6 +33,7 @@ class OrderRead(OrderBase):
     height: int
     length: int
     weight_grams: int
+    items: List[ItemBase]
 
     @model_validator(mode="before")
     @classmethod
