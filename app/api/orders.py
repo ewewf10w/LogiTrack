@@ -18,10 +18,7 @@ def get_order_service(db: AsyncSession = Depends(get_db)):
 async def create_order(
     order_data: OrderCreate, service: OrderService = Depends(get_order_service)
 ):
-    try:
-        return await service.create_order(order_data)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    return await service.create_order(order_data)
 
 
 @router.get("/", response_model=List[OrderRead])
@@ -35,18 +32,12 @@ async def patch_order(
     order_data: OrderPatch,
     service: OrderService = Depends(get_order_service),
 ):
-    try:
-        return await service.patch_order(order_id, order_data)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    return await service.patch_order(order_id, order_data)
 
 
-@router.delete("/{order_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{order_id}", status_code=204)
 async def delete_order(
     order_id: int, service: OrderService = Depends(get_order_service)
 ):
-    try:
-        await service.delete_order(order_id)
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    await service.delete_order(order_id)
+    return Response(status_code=204)
