@@ -41,3 +41,14 @@ class OrderRead(OrderBase):
 
     class Config:
         from_attributes = True
+
+
+class OrderPatch(BaseModel):
+    title: Optional[str] = Field(None, min_length=3, max_length=100)
+    description: Optional[str] = None
+    width: Optional[int] = Field(None, gt=0)
+    height: Optional[int] = Field(None, gt=0)
+    length: Optional[int] = Field(None, gt=0)
+    weight_grams: Optional[int] = Field(None, gt=0)
+
+    version: int = Field(..., description="Текущая версия заказа")
