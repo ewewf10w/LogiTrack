@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.session import get_db
+from app.models.db_helper import db_helper
 from app.schemas.user import UserCreate, UserRead
 from app.services.user_service import UserService
 from app.repositories.user_repo import UserRepository
@@ -10,8 +10,8 @@ from app.repositories.user_repo import UserRepository
 router = APIRouter(prefix="/users", tags=["Users"])
 
 
-def get_user_service(db: AsyncSession = Depends(get_db)):
-    repo = UserRepository(db)
+def get_user_service(session: AsyncSession = Depends(db_helper.session_getter)):
+    repo = UserRepository(session)
     return UserService(repo)
 
 

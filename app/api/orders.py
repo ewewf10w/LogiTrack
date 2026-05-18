@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
-from app.db.session import get_db
+from app.models.db_helper import db_helper
 from app.repositories.order_repo import OrderRepository
 from app.repositories.item_repo import ItemRepository
 from app.services.order_service import OrderService
@@ -11,8 +11,10 @@ from app.schemas.order import OrderCreate, OrderRead, OrderPatch
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
 
-def get_order_service(db: AsyncSession = Depends(get_db)):
-    return OrderService(order_repo=OrderRepository(db), item_repo=ItemRepository(db))
+def get_order_service(session: AsyncSession = Depends(db_helper.session_getter)):
+    return OrderService(
+        order_repo=OrderRepository(session), item_repo=ItemRepository(session)
+    )
 
 
 @router.post("/", response_model=OrderRead)

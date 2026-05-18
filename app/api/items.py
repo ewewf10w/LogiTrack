@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
-from app.db.session import get_db
+from app.models.db_helper import db_helper
 from app.repositories.item_repo import ItemRepository
 from app.services.item_service import ItemService
 from app.schemas.item import ItemCreate, ItemRead
@@ -10,8 +10,8 @@ from app.schemas.item import ItemCreate, ItemRead
 router = APIRouter(prefix="/items", tags=["Items"])
 
 
-def get_item_service(db: AsyncSession = Depends(get_db)):
-    return ItemService(ItemRepository(db))
+def get_item_service(session: AsyncSession = Depends(db_helper.session_getter)):
+    return ItemService(ItemRepository(session))
 
 
 @router.post("/", response_model=ItemRead)
