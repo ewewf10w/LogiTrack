@@ -19,7 +19,7 @@ class OrderBase(BaseModel):
     width: int = Field(..., gt=0, le=1000, description="Ширина в см")
     height: int = Field(..., gt=0, le=1000, description="Высота в см")
     length: int = Field(..., gt=0, le=1000, description="Длина в см")
-    weight_grams: int = Field(..., gt=0, le=100000, description="Вес в граммах")
+    weight_grams: int = Field(..., gt=0, le=1000000, description="Вес в граммах")
 
 
 class OrderCreate(OrderBase):
@@ -35,6 +35,9 @@ class OrderRead(OrderBase):
     weight_grams: int
     items: List[ItemBase]
 
+    volume_m3: float
+    weight_kg: float
+
     @model_validator(mode="before")
     @classmethod
     def extract_from_value_objects(cls, data):
@@ -45,6 +48,11 @@ class OrderRead(OrderBase):
 
         if hasattr(data, "weight"):
             data.weight_grams = data.weight.grams
+
+        if hasattr(data, "dimensions"):
+            data.volume_m3 = data.dimensions.volume_m3
+        if hasattr(data, "weight"):
+            data.weight_kg = data.weight.kg
 
         return data
 

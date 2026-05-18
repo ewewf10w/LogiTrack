@@ -11,8 +11,12 @@ class OrderService:
         self.item_repo = item_repo
 
     async def create_order(self, schema: OrderCreate) -> Order:
-        items = await self.item_repo.get_by_ids(schema.item_ids)
+        dims = Dimensions(
+            width=schema.width, height=schema.height, length=schema.length
+        )
+        w = Weight(grams=schema.weight_grams)
 
+        items = await self.item_repo.get_by_ids(schema.item_ids)
         if len(items) != len(schema.item_ids):
             raise ValueError("Некоторые товары не найдены")
 
@@ -21,6 +25,12 @@ class OrderService:
 
         if any(v <= 0 for v in [schema.width, schema.height, schema.length]):
             raise ValueError("Габариты (ширина, высота, длина) должны быть больше нуля")
+
+        if w.kg > 500:
+            raise ValueError("Мы не перевозим грузы тяжелее 500 кг")
+
+        if dims.volume_m3 > 10:
+            raise ValueError("Объем груза слишком велик для наших машин")
 
         dims = Dimensions(
             width=schema.width, height=schema.height, length=schema.length

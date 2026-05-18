@@ -1,15 +1,35 @@
-from sqlalchemy import String
+import enum
+
+from typing import TYPE_CHECKING
+from sqlalchemy import Enum, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
+from fastapi_users_db_sqlalchemy import SQLAlchemyBaseUserTable
+
+if TYPE_CHECKING:
+    from app.models.order import Order
 
 
-class User(Base):
+class UserRole(str, enum.Enum):
+    ADMIN = "admin"
+    MANAGER = "manager"
+    CUSTOMER = "customer"
+    COURIER = "courier"
+
+
+class User(Base, SQLAlchemyBaseUserTable[int]):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    firstname: Mapped[str] = mapped_column(String(50), nullable=False)
-    lastname: Mapped[str] = mapped_column(String(50), nullable=False)
-    email: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
-    role: Mapped[str] = mapped_column(String(20), default="client")
 
-    # orders: Mapped[list["Order"]] = relationship("Order", back_populates="user")
+    first_name: Mapped[str] = mapped_column(String(50), nullable=False)
+    last_name: Mapped[str] = mapped_column(String(50), nullable=False)
+
+    role: Mapped[UserRole] = mapped_column(
+        Enum(UserRole), default=UserRole.CUSTOMER, nullable=False
+    )
+
+    orders: Mapped[list["Order"]] = relationship("Order", back_populates="user")
+
+    def __repr__(self):
+        return f"<User {self.email} (Role: {self.role})>"

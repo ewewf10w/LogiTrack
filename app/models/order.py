@@ -24,7 +24,7 @@ class Order(Base):
 
     weight: Mapped[Weight] = composite(Weight, "weight_grams")
 
-    # user: Mapped["User"] = relationship("User", back_populates="orders")
+    user: Mapped["User"] = relationship("User", back_populates="orders")
 
     items: Mapped[list["Item"]] = relationship(
         "Item", secondary="order_items", back_populates="orders"
