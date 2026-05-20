@@ -20,7 +20,7 @@ def get_order_service(session: AsyncSession = Depends(db_helper.session_getter))
     )
 
 
-@router.post("/", response_model=OrderRead, status_code=201)
+@router.post("/", response_model=OrderRead, status_code=status.HTTP_201_CREATED)
 async def create_order(
     order_data: OrderCreate,
     service: OrderService = Depends(get_order_service),
@@ -41,17 +41,20 @@ async def list_orders(
 async def patch_order(
     order_id: int,
     order_data: OrderPatch,
+    current_user: User = Depends(current_active_user),
     service: OrderService = Depends(get_order_service),
 ):
-    return await service.patch_order(order_id, order_data)
+    return await service.patch_order(order_id, order_data, current_user)
 
 
-@router.delete("/{order_id}", status_code=204)
+@router.delete("/{order_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_order(
-    order_id: int, service: OrderService = Depends(get_order_service)
+    order_id: int,
+    current_user: User = Depends(current_active_user),
+    service: OrderService = Depends(get_order_service),
 ):
-    await service.delete_order(order_id)
-    return Response(status_code=204)
+    await service.delete_order(order_id, current_user)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.patch("/{order_id}/status", response_model=OrderRead)

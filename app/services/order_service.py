@@ -6,8 +6,7 @@ from app.repositories.item_repo import ItemRepository
 from app.repositories.order_repo import OrderRepository
 from app.models.order import Order, OrderStatus
 from app.models.value_objects import Dimensions, Weight
-from app.schemas import order
-from app.schemas.order import OrderCreate, OrderPatch, OrderStatus
+from app.schemas.order import OrderCreate, OrderPatch
 
 
 class OrderService:
@@ -83,7 +82,6 @@ class OrderService:
         return await self.order_repo.get_all()
 
     async def get_orders_for_user(self, user: User):
-
         if user.role in (UserRole.ADMIN, UserRole.MANAGER):
             return await self.order_repo.get_all()
 
@@ -92,19 +90,41 @@ class OrderService:
 
         return await self.order_repo.get_all_by_client(user.id)
 
-    async def patch_order(self, order_id: int, schema: OrderPatch) -> Order:
+    async def patch_order(
+        self, order_id: int, schema: OrderPatch, current_user: User
+    ) -> Order:
         order = await self.order_repo.get_by_id(order_id)
         if not order:
-            raise ValueError("Заказ не найден")
+            raise HTTPException(status_code=404, detail="Заказ не найден")
+
+        if current_user.role == UserRole.COURIER:
+            raise HTTPException(
+                status_code=403,
+                detail="Курьеры не могут редактировать параметры заказа.",
+            )
+
+        if current_user.role == UserRole.CUSTOMER and order.user_id != current_user.id:
+            raise HTTPException(
+                status_code=403, detail="Вы не можете редактировать чужой заказ."
+            )
+
+        if current_user.role == UserRole.CUSTOMER and order.status != OrderStatus.NEW:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Вы можете редактировать заказ только в статусе NEW. Сейчас статус: {order.status.value}",
+            )
 
         if order.status in [OrderStatus.DELIVERED, OrderStatus.CANCELLED]:
             raise HTTPException(
                 status_code=400,
-                detail=f"Нельзя редактировать заказ в статусе {order.status.value}",
+                detail=f"Нельзя редактировать заказ в завершенном статусе {order.status.value}",
             )
 
         if order.version != schema.version:
-            raise ValueError("Данные устарели. Кто-то другой уже изменил этот заказ.")
+            raise HTTPException(
+                status_code=409,
+                detail="Данные устарели. Кто-то другой уже изменил этот заказ. Обновите страницу.",
+            )
 
         if schema.title is not None:
             order.title = schema.title
@@ -115,34 +135,47 @@ class OrderService:
             order.dimensions = Dimensions(
                 width=(
                     schema.width if schema.width is not None else order.dimensions.width
-                ),
-                height=(
-                    schema.height
-                    if schema.height is not None
-                    else order.dimensions.height
-                ),
-                length=(
-                    schema.length
-                    if schema.length is not None
-                    else order.dimensions.length
-                ),
+                )
             )
 
         if schema.weight_grams is not None:
             order.weight = Weight(grams=schema.weight_grams)
 
         order.version += 1
-        return await self.order_repo.create(order)
 
-    async def delete_order(self, order_id: int) -> None:
+        try:
+            return await self.order_repo.update(order)
+        except StaleDataError:
+            raise HTTPException(
+                status_code=409,
+                detail="Данные заказа были изменены другим пользователем при сохранении.",
+            )
+
+    async def delete_order(self, order_id: int, current_user: User) -> None:
         order = await self.order_repo.get_by_id(order_id)
         if not order:
-            raise ValueError("Заказ не найден.")
+            raise HTTPException(status_code=404, detail="Заказ не найден.")
+
+        if current_user.role == UserRole.COURIER:
+            raise HTTPException(
+                status_code=403, detail="Курьеры не могут удалять заказы."
+            )
+
+        if current_user.role == UserRole.CUSTOMER:
+            if order.user_id != current_user.id:
+                raise HTTPException(
+                    status_code=403, detail="Вы не можете удалить чужой заказ."
+                )
+            if order.status != OrderStatus.NEW:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Клиент может удалить заказ только на стадии NEW.",
+                )
 
         await self.order_repo.delete(order)
 
     async def change_order_status(
-        self, order_id: int, new_status: OrderStatus, current_user
+        self, order_id: int, new_status: OrderStatus, current_user: User
     ) -> Order:
         order = await self.order_repo.get_by_id(order_id)
         if not order:
@@ -153,21 +186,22 @@ class OrderService:
         if old_status == new_status:
             return order
 
-        ALLOWED_TRANSITIONS = {
-            OrderStatus.NEW: [OrderStatus.ACCEPTED, OrderStatus.CANCELLED],
-            OrderStatus.ACCEPTED: [OrderStatus.IN_DELIVERY, OrderStatus.CANCELLED],
-            OrderStatus.IN_DELIVERY: [OrderStatus.DELIVERED, OrderStatus.CANCELLED],
-            OrderStatus.DELIVERED: [],
-            OrderStatus.CANCELLED: [],
-        }
+        if current_user.role in (UserRole.ADMIN, UserRole.MANAGER):
+            order.status = new_status
+        else:
+            ALLOWED_TRANSITIONS = {
+                OrderStatus.NEW: [OrderStatus.ACCEPTED, OrderStatus.CANCELLED],
+                OrderStatus.ACCEPTED: [OrderStatus.IN_DELIVERY, OrderStatus.CANCELLED],
+                OrderStatus.IN_DELIVERY: [OrderStatus.DELIVERED, OrderStatus.CANCELLED],
+                OrderStatus.DELIVERED: [],
+                OrderStatus.CANCELLED: [],
+            }
 
-        if new_status not in ALLOWED_TRANSITIONS.get(old_status, []):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Невозможный перевод статуса из {old_status.value} в {new_status.value}",
-            )
-
-        if current_user.role not in (UserRole.ADMIN, UserRole.MANAGER):
+            if new_status not in ALLOWED_TRANSITIONS.get(old_status, []):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Невозможный перевод статуса из {old_status.value} в {new_status.value}",
+                )
 
             if current_user.role == UserRole.COURIER:
                 if new_status == OrderStatus.ACCEPTED:
@@ -180,7 +214,6 @@ class OrderService:
                             detail="Этот заказ уже принял другой курьер",
                         )
                     order.courier_id = current_user.id
-
                 else:
                     if order.courier_id != current_user.id:
                         raise HTTPException(
@@ -201,7 +234,7 @@ class OrderService:
                         detail="У вас нет прав на смену статуса для этого действия",
                     )
 
-        order.status = new_status
+            order.status = new_status
 
         try:
             updated_order = await self.order_repo.update(order)
