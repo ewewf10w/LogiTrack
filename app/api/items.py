@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
@@ -14,9 +14,10 @@ def get_item_service(session: AsyncSession = Depends(db_helper.session_getter)):
     return ItemService(ItemRepository(session))
 
 
-@router.post("/", response_model=ItemRead)
+@router.post("/", response_model=ItemRead, status_code=status.HTTP_201_CREATED)
 async def create_item(
-    item_data: ItemCreate, service: ItemService = Depends(get_item_service)
+    item_data: ItemCreate,
+    service: ItemService = Depends(get_item_service),
 ):
     return await service.create_item(item_data)
 

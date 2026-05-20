@@ -8,7 +8,7 @@ class ItemService:
         self.repository = repository
 
     async def create_item(self, schema: ItemCreate) -> Item:
-        new_item = Item(name=schema.name, price=schema.price)
+        new_item = Item(**schema.model_dump())
         return await self.repository.create(new_item)
 
     async def get_all_items(self):

@@ -26,7 +26,7 @@ class OrderService:
             if schema.user_id is None:
                 raise HTTPException(
                     status_code=400,
-                    detail="Менеджер или Администратор обязан указать ID клиента (user_id) для создания заказа.",
+                    detail="Менеджер или Администратор обязан указать ID клиента (user_id).",
                 )
             target_user_id = schema.user_id
         else:
@@ -34,37 +34,67 @@ class OrderService:
                 status_code=403, detail="У вашей роли нет прав на создание заказа."
             )
 
-        if schema.weight_grams <= 0:
-            raise HTTPException(
-                status_code=400, detail="Вес груза должен быть положительным числом"
-            )
-
-        if any(v <= 0 for v in [schema.width, schema.height, schema.length]):
-            raise HTTPException(
-                status_code=400,
-                detail="Габариты (ширина, высота, длина) должны быть больше нуля",
-            )
-
-        dims = Dimensions(
-            width=schema.width, height=schema.height, length=schema.length
-        )
-        w = Weight(grams=schema.weight_grams)
-
-        if w.kg > 500:
-            raise HTTPException(
-                status_code=400, detail="Мы не перевозим грузы тяжелее 500 кг"
-            )
-
-        if dims.volume_m3 > 10:
-            raise HTTPException(
-                status_code=400, detail="Объем груза слишком велик для наших машин"
-            )
-
         items = await self.item_repo.get_by_ids(schema.item_ids)
         if len(items) != len(schema.item_ids):
             raise HTTPException(
                 status_code=404,
-                detail="Некоторые из указанных товаров не найдены в системе",
+                detail="Некоторые из указанных товаров не найдены в системе.",
+            )
+
+        manual_dimensions_provided = all(
+            v is not None
+            for v in [schema.width, schema.height, schema.length, schema.weight_grams]
+        )
+
+        if manual_dimensions_provided:
+            if any(
+                v <= 0
+                for v in [
+                    schema.width,
+                    schema.height,
+                    schema.length,
+                    schema.weight_grams,
+                ]
+            ):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Переданные вручную габариты и вес должны быть строго больше нуля.",
+                )
+
+            dims = Dimensions(
+                width=schema.width, height=schema.height, length=schema.length
+            )
+            w = Weight(grams=schema.weight_grams)
+
+        else:
+            if not items:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Невозможно рассчитать габариты: в заказе нет товаров, и данные не введены вручную.",
+                )
+
+            total_weight_grams = sum(item.weight_grams for item in items)
+
+            max_item_width = max(item.width for item in items)
+            max_item_length = max(item.length for item in items)
+
+            total_height = sum(item.height for item in items)
+
+            dims = Dimensions(
+                width=max_item_width, height=total_height, length=max_item_length
+            )
+            w = Weight(grams=total_weight_grams)
+
+        if w.kg > 500:
+            raise HTTPException(
+                status_code=400,
+                detail="Суммарный вес груза превышает допустимый лимит компании (500 кг).",
+            )
+
+        if dims.volume_m3 > 10:
+            raise HTTPException(
+                status_code=400,
+                detail="Суммарный объем груза превышает лимит вместимости транспорта (10 м³).",
             )
 
         new_order = Order(
