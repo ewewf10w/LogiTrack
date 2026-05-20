@@ -1,7 +1,9 @@
+from typing import List
 from fastapi import HTTPException
 from sqlalchemy.orm.exc import StaleDataError
 
 from app.models.user import User, UserRole
+from app.models.item import Item
 from app.repositories.item_repo import ItemRepository
 from app.repositories.order_repo import OrderRepository
 from app.models.order import Order, OrderStatus
@@ -13,6 +15,16 @@ class OrderService:
     def __init__(self, order_repo: OrderRepository, item_repo: ItemRepository):
         self.order_repo = order_repo
         self.item_repo = item_repo
+
+    def _calculate_costs(self, items: List[Item], weight_kg: float, volume_m3: float):
+        total_price = sum(item.price for item in items)
+
+        base_fee = 20000
+        weight_fee = int(weight_kg * 1000)
+        volume_fee = int(volume_m3 * 100 * 5000)
+
+        delivery_price = base_fee + weight_fee + volume_fee
+        return total_price, delivery_price
 
     async def create_order(self, schema: OrderCreate, current_user: User) -> Order:
         if current_user.role == UserRole.COURIER:
@@ -60,48 +72,38 @@ class OrderService:
                     status_code=400,
                     detail="Переданные вручную габариты и вес должны быть строго больше нуля.",
                 )
-
             dims = Dimensions(
                 width=schema.width, height=schema.height, length=schema.length
             )
             w = Weight(grams=schema.weight_grams)
-
         else:
             if not items:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Невозможно рассчитать габариты: в заказе нет товаров, и данные не введены вручную.",
-                )
+                raise HTTPException(status_code=400, detail="В заказе нет товаров.")
 
             total_weight_grams = sum(item.weight_grams for item in items)
-
-            max_item_width = max(item.width for item in items)
-            max_item_length = max(item.length for item in items)
-
-            total_height = sum(item.height for item in items)
-
             dims = Dimensions(
-                width=max_item_width, height=total_height, length=max_item_length
+                width=max(item.width for item in items),
+                height=sum(item.height for item in items),
+                length=max(item.length for item in items),
             )
             w = Weight(grams=total_weight_grams)
 
         if w.kg > 500:
-            raise HTTPException(
-                status_code=400,
-                detail="Суммарный вес груза превышает допустимый лимит компании (500 кг).",
-            )
-
+            raise HTTPException(status_code=400, detail="Превышен лимит веса (500 кг).")
         if dims.volume_m3 > 10:
             raise HTTPException(
-                status_code=400,
-                detail="Суммарный объем груза превышает лимит вместимости транспорта (10 м³).",
+                status_code=400, detail="Превышен лимит объема (10 м³)."
             )
+
+        total_price, delivery_price = self._calculate_costs(items, w.kg, dims.volume_m3)
 
         new_order = Order(
             title=schema.title,
             description=schema.description,
             dimensions=dims,
             weight=w,
+            total_price=total_price,
+            delivery_price=delivery_price,
             user_id=target_user_id,
             items=items,
         )

@@ -1,4 +1,4 @@
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, composite, relationship
 from app.models.value_objects import Dimensions, Weight
 from app.db.base import Base
@@ -34,6 +34,13 @@ class Order(Base):
     dimensions_length: Mapped[int] = mapped_column()
 
     weight_grams: Mapped[int] = mapped_column()
+
+    total_price: Mapped[int] = mapped_column(Integer, nullable=False)
+    delivery_price: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    @property
+    def grand_total(self) -> int:
+        return self.total_price + self.delivery_price
 
     dimensions: Mapped[Dimensions] = composite(
         Dimensions, "dimensions_width", "dimensions_height", "dimensions_length"

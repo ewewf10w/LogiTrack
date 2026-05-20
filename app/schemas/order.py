@@ -53,6 +53,10 @@ class OrderRead(OrderBase):
     volume_m3: float
     weight_kg: float
 
+    total_price: int
+    delivery_price: int
+    grand_total: int
+
     @model_validator(mode="before")
     @classmethod
     def extract_from_value_objects(cls, data):
