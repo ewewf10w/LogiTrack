@@ -1,5 +1,6 @@
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from typing import List, Optional
+from app.models.order import OrderStatus
 
 
 class ItemBase(BaseModel):
@@ -34,6 +35,8 @@ class OrderRead(OrderBase):
     length: int
     weight_grams: int
     items: List[ItemBase]
+
+    status: OrderStatus
 
     user_id: Optional[int] = None
     courier_id: Optional[int] = None

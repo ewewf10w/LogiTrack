@@ -5,6 +5,7 @@ from fastapi_users import (
     BaseUserManager,
     IntegerIDMixin,
 )
+from fastapi_users.exceptions import UserAlreadyExists
 
 from app.core.config import settings
 from app.models import User
@@ -25,22 +26,27 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         self,
         user_create: UserCreate,
         safe: bool = False,
-        request: Optional["Request"] = None,
+        request=None,
     ) -> User:
-        """
-        Идеальное переопределение создания пользователя без костылей.
-        """
-        # Если это публичная регистрация (safe=True),
-        # то какая бы роль ни пришла в схеме, мы жестко ставим CUSTOMER
-        if safe:
-            user_create.role = UserRole.CUSTOMER
+        await self.validate_password(user_create.password, user_create)
 
-        # Если регистрирует админ (safe=False), библиотека сама возьмет
-        # роль (COURIER или MANAGER), которую мы передали в схеме EmployeeCreate.
+        existing_user = await self.user_db.get_by_email(user_create.email)
+        if existing_user is not None:
+            raise UserAlreadyExists()
 
-        # Отдаем управление базовому методу FastAPI-Users.
-        # Он сам всё провалидирует, захэширует пароль и сохранит в базу!
-        return await super().create(user_create, safe=safe, request=request)
+        user_dict = user_create.model_dump(exclude_unset=False)
+
+        password = user_dict.pop("password")
+        user_dict["hashed_password"] = self.password_helper.hash(password)
+
+        if user_dict.get("role") is None:
+            user_dict["role"] = UserRole.CUSTOMER
+
+        created_user = await self.user_db.create(user_dict)
+
+        await self.on_after_register(created_user, request)
+
+        return created_user
 
     async def on_after_register(
         self,

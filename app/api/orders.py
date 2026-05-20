@@ -6,6 +6,7 @@ from app.models.db_helper import db_helper
 from app.repositories.order_repo import OrderRepository
 from app.repositories.item_repo import ItemRepository
 from app.services.order_service import OrderService
+from app.models.order import OrderStatus
 from app.schemas.order import OrderCreate, OrderRead, OrderPatch
 from app.models.user import User
 from app.authentication.fastapi_users import current_active_user
@@ -51,3 +52,23 @@ async def delete_order(
 ):
     await service.delete_order(order_id)
     return Response(status_code=204)
+
+
+@router.patch("/{order_id}/status", response_model=OrderRead)
+async def update_order_status(
+    order_id: int,
+    new_status: OrderStatus,
+    current_user: User = Depends(current_active_user),
+    service: OrderService = Depends(get_order_service),
+):
+    return await service.change_order_status(
+        order_id=order_id, new_status=new_status, current_user=current_user
+    )
+
+
+@router.get("/available", response_model=List[OrderRead])
+async def list_available_orders(
+    service: OrderService = Depends(get_order_service),
+    current_user: User = Depends(current_active_user),
+):
+    return await service.get_available_orders(current_user)

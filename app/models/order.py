@@ -2,6 +2,16 @@ from sqlalchemy import ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, composite, relationship
 from app.models.value_objects import Dimensions, Weight
 from app.db.base import Base
+import enum
+from sqlalchemy import Enum
+
+
+class OrderStatus(str, enum.Enum):
+    NEW = "NEW"
+    ACCEPTED = "ACCEPTED"
+    IN_DELIVERY = "IN_DELIVERY"
+    DELIVERED = "DELIVERED"
+    CANCELLED = "CANCELLED"
 
 
 class Order(Base):
@@ -13,6 +23,10 @@ class Order(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=True)
     courier_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id"), nullable=True
+    )
+
+    status: Mapped[OrderStatus] = mapped_column(
+        Enum(OrderStatus), default=OrderStatus.NEW, nullable=False
     )
 
     dimensions_width: Mapped[int] = mapped_column()

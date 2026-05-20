@@ -1,6 +1,6 @@
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload, selectinload
-from app.models.order import Order
+from app.models.order import Order, OrderStatus
 from app.repositories.base import BaseRepository
 
 
@@ -43,6 +43,25 @@ class OrderRepository(BaseRepository):
         query = (
             select(Order)
             .where(Order.courier_id == courier_id)
+            .options(selectinload(Order.items))
+        )
+        result = await self.session.execute(query)
+        return result.scalars().all()
+
+    async def update(self, order: Order) -> Order:
+        self.session.add(order)
+        await self.session.commit()
+
+        query = (
+            select(Order).where(Order.id == order.id).options(joinedload(Order.items))
+        )
+        result = await self.session.execute(query)
+        return result.unique().scalar_one()
+
+    async def get_available_orders(self):
+        query = (
+            select(Order)
+            .where(Order.status == OrderStatus.NEW)
             .options(selectinload(Order.items))
         )
         result = await self.session.execute(query)
