@@ -24,3 +24,14 @@ class ItemRead(ItemBase):
     weight_grams: int
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ItemUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    price: Optional[int] = Field(None, gt=0)
+    width: Optional[int] = Field(None, gt=0, le=1000)
+    height: Optional[int] = Field(None, gt=0, le=1000)
+    length: Optional[int] = Field(None, gt=0, le=1000)
+    weight_grams: Optional[int] = Field(None, gt=0, le=1000000)
+
+    model_config = ConfigDict(from_attributes=True)
