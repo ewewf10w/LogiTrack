@@ -25,6 +25,9 @@ class OrderBase(BaseModel):
 
 class OrderCreate(OrderBase):
     item_ids: List[int]
+    user_id: Optional[int] = Field(
+        default=None, description="ID клиента, если заказ создается менеджером"
+    )
 
 
 class OrderRead(OrderBase):
@@ -37,6 +40,7 @@ class OrderRead(OrderBase):
     items: List[ItemBase]
 
     status: OrderStatus
+    version: int
 
     user_id: Optional[int] = None
     courier_id: Optional[int] = None

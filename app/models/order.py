@@ -52,4 +52,4 @@ class Order(Base):
         "Item", secondary="order_items", back_populates="orders"
     )
 
-    version: Mapped[int] = mapped_column(default=1)
+    version: Mapped[int] = mapped_column(default=1, version_id_col=True)

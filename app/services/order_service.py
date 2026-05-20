@@ -1,4 +1,5 @@
 from fastapi import HTTPException
+from sqlalchemy.orm.exc import StaleDataError
 
 from app.models.user import User, UserRole
 from app.repositories.item_repo import ItemRepository
@@ -14,39 +15,65 @@ class OrderService:
         self.order_repo = order_repo
         self.item_repo = item_repo
 
-    async def create_order(self, schema: OrderCreate, user_id: int) -> Order:
+    async def create_order(self, schema: OrderCreate, current_user: User) -> Order:
+        if current_user.role == UserRole.COURIER:
+            raise HTTPException(
+                status_code=403, detail="Курьеры не могут создавать заказы в системе."
+            )
+
+        if current_user.role == UserRole.CUSTOMER:
+            target_user_id = current_user.id
+        elif current_user.role in [UserRole.MANAGER, UserRole.ADMIN]:
+            if schema.user_id is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Менеджер или Администратор обязан указать ID клиента (user_id) для создания заказа.",
+                )
+            target_user_id = schema.user_id
+        else:
+            raise HTTPException(
+                status_code=403, detail="У вашей роли нет прав на создание заказа."
+            )
+
+        if schema.weight_grams <= 0:
+            raise HTTPException(
+                status_code=400, detail="Вес груза должен быть положительным числом"
+            )
+
+        if any(v <= 0 for v in [schema.width, schema.height, schema.length]):
+            raise HTTPException(
+                status_code=400,
+                detail="Габариты (ширина, высота, длина) должны быть больше нуля",
+            )
+
         dims = Dimensions(
             width=schema.width, height=schema.height, length=schema.length
         )
         w = Weight(grams=schema.weight_grams)
+
+        if w.kg > 500:
+            raise HTTPException(
+                status_code=400, detail="Мы не перевозим грузы тяжелее 500 кг"
+            )
+
+        if dims.volume_m3 > 10:
+            raise HTTPException(
+                status_code=400, detail="Объем груза слишком велик для наших машин"
+            )
 
         items = await self.item_repo.get_by_ids(schema.item_ids)
         if len(items) != len(schema.item_ids):
-            raise ValueError("Некоторые товары не найдены")
-
-        if schema.weight_grams <= 0:
-            raise ValueError("Вес груза должен быть положительным числом")
-
-        if any(v <= 0 for v in [schema.width, schema.height, schema.length]):
-            raise ValueError("Габариты (ширина, высота, длина) должны быть больше нуля")
-
-        if w.kg > 500:
-            raise ValueError("Мы не перевозим грузы тяжелее 500 кг")
-
-        if dims.volume_m3 > 10:
-            raise ValueError("Объем груза слишком велик для наших машин")
-
-        dims = Dimensions(
-            width=schema.width, height=schema.height, length=schema.length
-        )
-        w = Weight(grams=schema.weight_grams)
+            raise HTTPException(
+                status_code=404,
+                detail="Некоторые из указанных товаров не найдены в системе",
+            )
 
         new_order = Order(
             title=schema.title,
             description=schema.description,
             dimensions=dims,
             weight=w,
-            user_id=user_id,
+            user_id=target_user_id,
             items=items,
         )
 
@@ -176,8 +203,14 @@ class OrderService:
 
         order.status = new_status
 
-        updated_order = await self.order_repo.update(order)
-        return updated_order
+        try:
+            updated_order = await self.order_repo.update(order)
+            return updated_order
+        except StaleDataError:
+            raise HTTPException(
+                status_code=409,
+                detail="Данные заказа были изменены другим пользователем. Пожалуйста, обновите страницу.",
+            )
 
     async def get_available_orders(self, current_user: User):
         if current_user.role == UserRole.CUSTOMER:

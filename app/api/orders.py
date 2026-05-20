@@ -20,13 +20,13 @@ def get_order_service(session: AsyncSession = Depends(db_helper.session_getter))
     )
 
 
-@router.post("/", response_model=OrderRead)
+@router.post("/", response_model=OrderRead, status_code=201)
 async def create_order(
     order_data: OrderCreate,
     service: OrderService = Depends(get_order_service),
     current_user: User = Depends(current_active_user),
 ):
-    return await service.create_order(order_data, user_id=current_user.id)
+    return await service.create_order(order_data, current_user)
 
 
 @router.get("/", response_model=List[OrderRead])
