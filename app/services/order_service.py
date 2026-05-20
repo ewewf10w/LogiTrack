@@ -8,13 +8,20 @@ from app.repositories.item_repo import ItemRepository
 from app.repositories.order_repo import OrderRepository
 from app.models.order import Order, OrderStatus
 from app.models.value_objects import Dimensions, Weight
+from app.repositories.user_repo import UserRepository
 from app.schemas.order import OrderCreate, OrderPatch
 
 
 class OrderService:
-    def __init__(self, order_repo: OrderRepository, item_repo: ItemRepository):
+    def __init__(
+        self,
+        order_repo: OrderRepository,
+        item_repo: ItemRepository,
+        user_repo: UserRepository,
+    ):
         self.order_repo = order_repo
         self.item_repo = item_repo
+        self.user_repo = user_repo
 
     def _calculate_costs(self, items: List[Item], weight_kg: float, volume_m3: float):
         total_price = sum(item.price for item in items)
@@ -284,3 +291,26 @@ class OrderService:
             )
 
         return await self.order_repo.get_available_orders()
+
+    async def assign_courier(
+        self, order_id: int, courier_id: int, current_user: User
+    ) -> Order:
+        if current_user.role not in [UserRole.ADMIN, UserRole.MANAGER]:
+            raise HTTPException(status_code=403, detail="Нет прав.")
+
+        order = await self.order_repo.get_by_id(order_id)
+        if not order:
+            raise HTTPException(status_code=404, detail="Заказ не найден.")
+
+        courier = await self.user_repo.get_courier_by_id(courier_id)
+        if not courier:
+            raise HTTPException(
+                status_code=400,
+                detail="Пользователь не найден или не является курьером.",
+            )
+
+        order.courier_id = courier.id
+        if order.status == OrderStatus.NEW:
+            order.status = OrderStatus.ACCEPTED
+
+        return await self.order_repo.update(order)

@@ -85,3 +85,7 @@ class OrderPatch(BaseModel):
     weight_grams: Optional[int] = Field(None, gt=0)
 
     version: int = Field(..., description="Текущая версия заказа")
+
+
+class OrderAssignCourier(BaseModel):
+    courier_id: int
