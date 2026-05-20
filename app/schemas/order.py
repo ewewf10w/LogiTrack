@@ -35,6 +35,9 @@ class OrderRead(OrderBase):
     weight_grams: int
     items: List[ItemBase]
 
+    user_id: Optional[int] = None
+    courier_id: Optional[int] = None
+
     volume_m3: float
     weight_kg: float
 

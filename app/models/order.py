@@ -11,6 +11,9 @@ class Order(Base):
     title: Mapped[str] = mapped_column(String(100))
     description: Mapped[str] = mapped_column(nullable=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=True)
+    courier_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
 
     dimensions_width: Mapped[int] = mapped_column()
     dimensions_height: Mapped[int] = mapped_column()
@@ -24,7 +27,12 @@ class Order(Base):
 
     weight: Mapped[Weight] = composite(Weight, "weight_grams")
 
-    user: Mapped["User"] = relationship("User", back_populates="orders")
+    user: Mapped["User"] = relationship(
+        "User", foreign_keys=[user_id], back_populates="orders"
+    )
+    courier: Mapped["User"] = relationship(
+        "User", foreign_keys=[courier_id], back_populates="courier_orders"
+    )
 
     items: Mapped[list["Item"]] = relationship(
         "Item", secondary="order_items", back_populates="orders"

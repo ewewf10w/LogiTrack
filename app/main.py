@@ -5,6 +5,9 @@ import app.models
 # ROUTERS
 from app.api.orders import router as order_router
 from app.api.items import router as item_router
+from app.api.admin import router as admin_router
+
+
 from app.authentication.fastapi_users import fastapi_users
 from app.authentication.backend import authentication_backend
 from app.authentication.schemas.user import UserRead, UserCreate, UserUpdate
@@ -28,6 +31,7 @@ app.include_router(
     prefix="/api/users",
     tags=["Users"],
 )
+app.include_router(admin_router)
 
 
 @app.exception_handler(ValueError)

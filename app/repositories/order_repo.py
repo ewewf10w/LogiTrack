@@ -29,3 +29,21 @@ class OrderRepository(BaseRepository):
     async def delete(self, order: Order) -> None:
         await self.session.delete(order)
         await self.session.commit()
+
+    async def get_all_by_client(self, client_id: int):
+        query = (
+            select(Order)
+            .where(Order.user_id == client_id)
+            .options(selectinload(Order.items))
+        )
+        result = await self.session.execute(query)
+        return result.scalars().all()
+
+    async def get_all_by_courier(self, courier_id: int):
+        query = (
+            select(Order)
+            .where(Order.courier_id == courier_id)
+            .options(selectinload(Order.items))
+        )
+        result = await self.session.execute(query)
+        return result.scalars().all()

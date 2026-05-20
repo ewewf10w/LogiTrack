@@ -1,3 +1,4 @@
+from app.models.user import User
 from app.repositories.item_repo import ItemRepository
 from app.repositories.order_repo import OrderRepository
 from app.models.order import Order
@@ -10,7 +11,7 @@ class OrderService:
         self.order_repo = order_repo
         self.item_repo = item_repo
 
-    async def create_order(self, schema: OrderCreate) -> Order:
+    async def create_order(self, schema: OrderCreate, user_id: int) -> Order:
         dims = Dimensions(
             width=schema.width, height=schema.height, length=schema.length
         )
@@ -42,7 +43,7 @@ class OrderService:
             description=schema.description,
             dimensions=dims,
             weight=w,
-            # user_id=1,
+            user_id=user_id,
             items=items,
         )
 
@@ -50,6 +51,17 @@ class OrderService:
 
     async def get_all_orders(self):
         return await self.order_repo.get_all()
+
+    async def get_orders_for_user(self, user: User):
+        from app.models.user import UserRole
+
+        if user.role in (UserRole.ADMIN, UserRole.MANAGER):
+            return await self.order_repo.get_all()
+
+        if user.role == UserRole.COURIER:
+            return await self.order_repo.get_all_by_courier(user.id)
+
+        return await self.order_repo.get_all_by_client(user.id)
 
     async def patch_order(self, order_id: int, schema: OrderPatch) -> Order:
         order = await self.order_repo.get_by_id(order_id)

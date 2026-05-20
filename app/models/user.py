@@ -29,7 +29,13 @@ class User(Base, SQLAlchemyBaseUserTable[int]):
         Enum(UserRole), default=UserRole.CUSTOMER, nullable=False
     )
 
-    orders: Mapped[list["Order"]] = relationship("Order", back_populates="user")
+    orders: Mapped[list["Order"]] = relationship(
+        "Order", foreign_keys="[Order.user_id]", back_populates="user"
+    )
+
+    courier_orders: Mapped[list["Order"]] = relationship(
+        "Order", foreign_keys="[Order.courier_id]", back_populates="courier"
+    )
 
     def __repr__(self):
         return f"<User {self.email} (Role: {self.role})>"

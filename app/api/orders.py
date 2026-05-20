@@ -7,6 +7,8 @@ from app.repositories.order_repo import OrderRepository
 from app.repositories.item_repo import ItemRepository
 from app.services.order_service import OrderService
 from app.schemas.order import OrderCreate, OrderRead, OrderPatch
+from app.models.user import User
+from app.authentication.fastapi_users import current_active_user
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
@@ -19,14 +21,19 @@ def get_order_service(session: AsyncSession = Depends(db_helper.session_getter))
 
 @router.post("/", response_model=OrderRead)
 async def create_order(
-    order_data: OrderCreate, service: OrderService = Depends(get_order_service)
+    order_data: OrderCreate,
+    service: OrderService = Depends(get_order_service),
+    current_user: User = Depends(current_active_user),
 ):
-    return await service.create_order(order_data)
+    return await service.create_order(order_data, user_id=current_user.id)
 
 
 @router.get("/", response_model=List[OrderRead])
-async def list_orders(service: OrderService = Depends(get_order_service)):
-    return await service.get_all_orders()
+async def list_orders(
+    service: OrderService = Depends(get_order_service),
+    current_user: User = Depends(current_active_user),
+):
+    return await service.get_orders_for_user(current_user)
 
 
 @router.patch("/{order_id}", response_model=OrderRead)
