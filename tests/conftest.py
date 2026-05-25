@@ -36,7 +36,6 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
 
 @pytest.fixture(autouse=True)
 async def override_dependencies(db_session: AsyncSession):
-    """Подменяем реальную сессию БД на тестовую в FastAPI и инициализируем Taskiq для тестов."""
 
     async def _get_test_session():
         yield db_session
@@ -53,7 +52,6 @@ async def override_dependencies(db_session: AsyncSession):
 
 @pytest.fixture
 async def client() -> AsyncGenerator[AsyncClient, None]:
-    """Асинхронный клиент для тестирования API-эндпоинтов."""
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as ac:

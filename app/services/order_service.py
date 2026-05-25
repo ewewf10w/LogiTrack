@@ -196,13 +196,21 @@ class OrderService:
             order.dimensions = Dimensions(
                 width=(
                     schema.width if schema.width is not None else order.dimensions.width
-                )
+                ),
+                height=(
+                    schema.height
+                    if schema.height is not None
+                    else order.dimensions.height
+                ),
+                length=(
+                    schema.length
+                    if schema.length is not None
+                    else order.dimensions.length
+                ),
             )
 
         if schema.weight_grams is not None:
             order.weight = Weight(grams=schema.weight_grams)
-
-        order.version += 1
 
         try:
             return await self.order_repo.update(order)
