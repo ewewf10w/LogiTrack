@@ -60,4 +60,6 @@ class Order(Base):
         "OrderItem", back_populates="order", cascade="all, delete-orphan"
     )
 
-    version: Mapped[int] = mapped_column(default=1, version_id_col=True)
+    version: Mapped[int] = mapped_column(default=1)
+
+    __mapper_args__ = {"version_id_col": version}

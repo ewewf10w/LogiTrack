@@ -40,13 +40,10 @@ class AuthConfig(BaseModel):
 
 
 class AccessToken(BaseModel):
+    secret: Optional[str] = None
+    reset_password_token_secret: Optional[str] = None
+    verification_token_secret: Optional[str] = None
     lifetime_seconds: int = 3600
-    reset_password_token_secret: str = "change-me-please"
-    verification_token_secret: str = "change-me-please"
-
-
-class ApiConfig(BaseModel):
-    router_key: str = "default-key"
 
 
 class SmtpConfig(BaseModel):
@@ -70,9 +67,8 @@ class Settings(BaseSettings):
     db: DatabaseConfig = DatabaseConfig(
         url="postgresql+asyncpg://user:pass@localhost/dbname"
     )
-    access_token: AccessToken = AccessToken()
-    api: ApiConfig = ApiConfig()
-    smtp: SmtpConfig = SmtpConfig()
+    access_token: AccessToken
+    smtp: SmtpConfig
 
 
 settings = Settings()
