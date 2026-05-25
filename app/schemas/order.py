@@ -125,7 +125,7 @@ class OrderFilterParams(BaseModel):
 
 
 class OrderPaginationResponse(BaseModel):
-    items: List[OrderRead] = Field(
+    orders: List[OrderRead] = Field(
         ..., description="Список заказов на текущей странице"
     )
     total: int = Field(

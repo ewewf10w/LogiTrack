@@ -9,20 +9,18 @@ from app.repositories.item_repo import ItemRepository
 from app.repositories.order_repo import OrderRepository
 from app.models.order import Order, OrderStatus
 from app.models.value_objects import Dimensions, Weight
-from app.repositories.user_repo import UserRepository
 from app.schemas.order import OrderCreate, OrderPatch, OrderFilterParams
+
+from app.services.notification_service import NotificationService
 
 
 class OrderService:
     def __init__(
-        self,
-        order_repo: OrderRepository,
-        item_repo: ItemRepository,
-        user_repo: UserRepository,
+        self, order_repo: OrderRepository, item_repo: ItemRepository, user_manager=None
     ):
         self.order_repo = order_repo
         self.item_repo = item_repo
-        self.user_repo = user_repo
+        self.user_manager = user_manager
 
     def _calculate_costs(
         self, items_with_qty: List[tuple[Item, int]], weight_kg: float, volume_m3: float
@@ -147,7 +145,7 @@ class OrderService:
             )
 
         return {
-            "items": items,
+            "orders": items,
             "total": total,
             "limit": params.limit,
             "offset": params.offset,
@@ -301,7 +299,35 @@ class OrderService:
 
         try:
             updated_order = await self.order_repo.update(order)
+
+            try:
+                customer_email = "customer_test@example.com"
+
+                if updated_order.user_id and self.user_manager:
+                    try:
+                        customer_obj = await self.user_manager.get(
+                            updated_order.user_id
+                        )
+                        if customer_obj and customer_obj.email:
+                            customer_email = customer_obj.email
+                    except Exception as user_not_found:
+                        print(
+                            f"Пользователь {updated_order.user_id} не найден: {user_not_found}"
+                        )
+
+                await NotificationService.notify_order_status_changed(
+                    order=updated_order, old_status=old_status, email_to=customer_email
+                )
+
+            except Exception as mail_err:
+                import logging
+
+                logging.getLogger(__name__).error(
+                    f"Ошибка внутри блока отправки уведомления: {mail_err}"
+                )
+
             return updated_order
+
         except StaleDataError:
             raise HTTPException(
                 status_code=409,
@@ -326,8 +352,14 @@ class OrderService:
         if not order:
             raise HTTPException(status_code=404, detail="Заказ не найден.")
 
-        courier = await self.user_repo.get_courier_by_id(courier_id)
-        if not courier:
+        courier = None
+        if self.user_manager:
+            try:
+                courier = await self.user_manager.get(courier_id)
+            except Exception:
+                pass
+
+        if not courier or courier.role != UserRole.COURIER:
             raise HTTPException(
                 status_code=400,
                 detail="Пользователь не найден или не является курьером.",

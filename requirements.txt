@@ -9,3 +9,4 @@ aiosmtplib
 pytest
 pytest-asyncio
 httpx
+aiosmtplib

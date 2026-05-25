@@ -3,7 +3,7 @@ from pydantic_settings import (
     BaseSettings,
     SettingsConfigDict,
 )
-from typing import Literal
+from typing import Literal, Optional
 
 
 class RunConfig(BaseModel):
@@ -49,6 +49,14 @@ class ApiConfig(BaseModel):
     router_key: str = "default-key"
 
 
+class SmtpConfig(BaseModel):
+    host: str = "127.0.0.1"
+    port: int = 1025
+    from_email: str = "no-reply@logitrack.com"
+    user: Optional[str] = None
+    password: Optional[str] = None
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=(".env.template", ".env"),
@@ -64,6 +72,7 @@ class Settings(BaseSettings):
     )
     access_token: AccessToken = AccessToken()
     api: ApiConfig = ApiConfig()
+    smtp: SmtpConfig = SmtpConfig()
 
 
 settings = Settings()

@@ -8,11 +8,11 @@ from sqlalchemy import Enum
 
 
 class OrderStatus(str, enum.Enum):
-    NEW = "NEW"
-    ACCEPTED = "ACCEPTED"
-    IN_DELIVERY = "IN_DELIVERY"
-    DELIVERED = "DELIVERED"
-    CANCELLED = "CANCELLED"
+    NEW = "Новый"
+    ACCEPTED = "Принят курьером"
+    IN_DELIVERY = "В доставке"
+    DELIVERED = "Доставлен"
+    CANCELLED = "Отменен"
 
 
 class Order(Base):

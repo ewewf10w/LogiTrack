@@ -16,7 +16,7 @@ async def create_super_admin():
             select(User).where(User.email == "admin@logitrack.ru")
         )
         if result.scalar_one_or_none():
-            print("❌ Администратор уже существует в базе данных!")
+            print("Администратор уже существует в базе данных!")
             return
 
         admin = User(

@@ -5,7 +5,6 @@ from typing import List
 from app.models.db_helper import db_helper
 from app.repositories.order_repo import OrderRepository
 from app.repositories.item_repo import ItemRepository
-from app.repositories.user_repo import UserRepository
 from app.services.order_service import OrderService
 from app.models.order import OrderStatus
 from app.schemas.order import (
@@ -18,15 +17,19 @@ from app.schemas.order import (
 )
 from app.models.user import User
 from app.authentication.fastapi_users import current_active_user
+from app.authentication.fastapi_users import get_user_manager
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
 
-def get_order_service(session: AsyncSession = Depends(db_helper.session_getter)):
+def get_order_service(
+    session: AsyncSession = Depends(db_helper.session_getter),
+    user_manager=Depends(get_user_manager),
+):
     return OrderService(
         order_repo=OrderRepository(session),
         item_repo=ItemRepository(session),
-        user_repo=UserRepository(session),
+        user_manager=user_manager,
     )
 
 
