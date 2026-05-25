@@ -10,7 +10,7 @@ from app.repositories.order_repo import OrderRepository
 from app.models.order import Order, OrderStatus
 from app.models.value_objects import Dimensions, Weight
 from app.schemas.order import OrderCreate, OrderPatch, OrderFilterParams
-
+from app.tasks.notifications import notify_order_status_changed_task
 from app.services.notification_service import NotificationService
 
 
@@ -296,35 +296,14 @@ class OrderService:
                     )
 
             order.status = new_status
+        # -----------------------------------------------------------------
 
         try:
             updated_order = await self.order_repo.update(order)
-
-            try:
-                customer_email = "customer_test@example.com"
-
-                if updated_order.user_id and self.user_manager:
-                    try:
-                        customer_obj = await self.user_manager.get(
-                            updated_order.user_id
-                        )
-                        if customer_obj and customer_obj.email:
-                            customer_email = customer_obj.email
-                    except Exception as user_not_found:
-                        print(
-                            f"Пользователь {updated_order.user_id} не найден: {user_not_found}"
-                        )
-
-                await NotificationService.notify_order_status_changed(
-                    order=updated_order, old_status=old_status, email_to=customer_email
-                )
-
-            except Exception as mail_err:
-                import logging
-
-                logging.getLogger(__name__).error(
-                    f"Ошибка внутри блока отправки уведомления: {mail_err}"
-                )
+            await notify_order_status_changed_task.kiq(
+                order_id=updated_order.id,
+                old_status_name=old_status.name,
+            )
 
             return updated_order
 
