@@ -32,7 +32,6 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="LogiTrack Project", lifespan=lifespan)
 
-# Регистрация роутеров
 app.include_router(order_router)
 app.include_router(item_router)
 app.include_router(
