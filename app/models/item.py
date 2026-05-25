@@ -1,6 +1,7 @@
 from sqlalchemy import Table, Column, ForeignKey, String, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
+from app.models.order_item import OrderItem
 
 
 class Item(Base):
@@ -24,6 +25,6 @@ class Item(Base):
         Integer, default=500, server_default="500", nullable=False
     )
 
-    orders: Mapped[list["Order"]] = relationship(
-        "Order", secondary="order_items", back_populates="items"
+    order_items: Mapped[list["OrderItem"]] = relationship(
+        "OrderItem", back_populates="item"
     )

@@ -8,7 +8,14 @@ from app.repositories.item_repo import ItemRepository
 from app.repositories.user_repo import UserRepository
 from app.services.order_service import OrderService
 from app.models.order import OrderStatus
-from app.schemas.order import OrderAssignCourier, OrderCreate, OrderRead, OrderPatch
+from app.schemas.order import (
+    OrderAssignCourier,
+    OrderCreate,
+    OrderRead,
+    OrderPatch,
+    OrderFilterParams,
+    OrderPaginationResponse,
+)
 from app.models.user import User
 from app.authentication.fastapi_users import current_active_user
 
@@ -32,12 +39,13 @@ async def create_order(
     return await service.create_order(order_data, current_user)
 
 
-@router.get("/", response_model=List[OrderRead])
+@router.get("/", response_model=OrderPaginationResponse)
 async def list_orders(
+    params: OrderFilterParams = Depends(),
     service: OrderService = Depends(get_order_service),
     current_user: User = Depends(current_active_user),
 ):
-    return await service.get_orders_for_user(current_user)
+    return await service.get_orders_for_user(current_user, params)
 
 
 @router.patch("/{order_id}", response_model=OrderRead)

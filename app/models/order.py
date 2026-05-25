@@ -1,5 +1,6 @@
 from sqlalchemy import ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, composite, relationship
+from app.models.order_item import OrderItem
 from app.models.value_objects import Dimensions, Weight
 from app.db.base import Base
 import enum
@@ -55,8 +56,8 @@ class Order(Base):
         "User", foreign_keys=[courier_id], back_populates="courier_orders"
     )
 
-    items: Mapped[list["Item"]] = relationship(
-        "Item", secondary="order_items", back_populates="orders"
+    order_items: Mapped[list["OrderItem"]] = relationship(
+        "OrderItem", back_populates="order", cascade="all, delete-orphan"
     )
 
     version: Mapped[int] = mapped_column(default=1, version_id_col=True)

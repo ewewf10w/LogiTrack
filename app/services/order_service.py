@@ -2,6 +2,7 @@ from typing import List
 from fastapi import HTTPException
 from sqlalchemy.orm.exc import StaleDataError
 
+from app.models.order_item import OrderItem
 from app.models.user import User, UserRole
 from app.models.item import Item
 from app.repositories.item_repo import ItemRepository
@@ -9,7 +10,7 @@ from app.repositories.order_repo import OrderRepository
 from app.models.order import Order, OrderStatus
 from app.models.value_objects import Dimensions, Weight
 from app.repositories.user_repo import UserRepository
-from app.schemas.order import OrderCreate, OrderPatch
+from app.schemas.order import OrderCreate, OrderPatch, OrderFilterParams
 
 
 class OrderService:
@@ -23,8 +24,10 @@ class OrderService:
         self.item_repo = item_repo
         self.user_repo = user_repo
 
-    def _calculate_costs(self, items: List[Item], weight_kg: float, volume_m3: float):
-        total_price = sum(item.price for item in items)
+    def _calculate_costs(
+        self, items_with_qty: List[tuple[Item, int]], weight_kg: float, volume_m3: float
+    ):
+        total_price = sum(item.price * qty for item, qty in items_with_qty)
 
         base_fee = 20000
         weight_fee = int(weight_kg * 1000)
@@ -53,12 +56,25 @@ class OrderService:
                 status_code=403, detail="У вашей роли нет прав на создание заказа."
             )
 
-        items = await self.item_repo.get_by_ids(schema.item_ids)
-        if len(items) != len(schema.item_ids):
+        incoming_item_ids = [pos.item_id for pos in schema.items]
+        if len(set(incoming_item_ids)) != len(incoming_item_ids):
+            raise HTTPException(
+                status_code=400,
+                detail="Запрещено дублирование логических данных: один и тот же товар нельзя указывать в разных позициях. Используйте поле quantity.",
+            )
+
+        items_from_db = await self.item_repo.get_by_ids(incoming_item_ids)
+        if len(items_from_db) != len(incoming_item_ids):
             raise HTTPException(
                 status_code=404,
                 detail="Некоторые из указанных товаров не найдены в системе.",
             )
+
+        items_dict = {item.id: item for item in items_from_db}
+
+        items_with_qty = [
+            (items_dict[pos.item_id], pos.quantity) for pos in schema.items
+        ]
 
         manual_dimensions_provided = all(
             v is not None
@@ -66,32 +82,22 @@ class OrderService:
         )
 
         if manual_dimensions_provided:
-            if any(
-                v <= 0
-                for v in [
-                    schema.width,
-                    schema.height,
-                    schema.length,
-                    schema.weight_grams,
-                ]
-            ):
-                raise HTTPException(
-                    status_code=400,
-                    detail="Переданные вручную габариты и вес должны быть строго больше нуля.",
-                )
             dims = Dimensions(
                 width=schema.width, height=schema.height, length=schema.length
             )
             w = Weight(grams=schema.weight_grams)
         else:
-            if not items:
+            if not items_with_qty:
                 raise HTTPException(status_code=400, detail="В заказе нет товаров.")
 
-            total_weight_grams = sum(item.weight_grams for item in items)
+            total_weight_grams = sum(
+                item.weight_grams * qty for item, qty in items_with_qty
+            )
+
             dims = Dimensions(
-                width=max(item.width for item in items),
-                height=sum(item.height for item in items),
-                length=max(item.length for item in items),
+                width=max(item.width for item, _ in items_with_qty),
+                height=sum(item.height * qty for item, qty in items_with_qty),
+                length=max(item.length for item, _ in items_with_qty),
             )
             w = Weight(grams=total_weight_grams)
 
@@ -102,7 +108,9 @@ class OrderService:
                 status_code=400, detail="Превышен лимит объема (10 м³)."
             )
 
-        total_price, delivery_price = self._calculate_costs(items, w.kg, dims.volume_m3)
+        total_price, delivery_price = self._calculate_costs(
+            items_with_qty, w.kg, dims.volume_m3
+        )
 
         new_order = Order(
             title=schema.title,
@@ -112,22 +120,38 @@ class OrderService:
             total_price=total_price,
             delivery_price=delivery_price,
             user_id=target_user_id,
-            items=items,
         )
+
+        new_order.order_items = [
+            OrderItem(item_id=item.id, quantity=qty, order=new_order)
+            for item, qty in items_with_qty
+        ]
 
         return await self.order_repo.create(new_order)
 
     async def get_all_orders(self):
         return await self.order_repo.get_all()
 
-    async def get_orders_for_user(self, user: User):
+    async def get_orders_for_user(self, user: User, params: OrderFilterParams):
         if user.role in (UserRole.ADMIN, UserRole.MANAGER):
-            return await self.order_repo.get_all()
+            items, total = await self.order_repo.get_orders_paginated(params=params)
 
-        if user.role == UserRole.COURIER:
-            return await self.order_repo.get_all_by_courier(user.id)
+        elif user.role == UserRole.COURIER:
+            items, total = await self.order_repo.get_orders_paginated(
+                params=params, courier_id=user.id
+            )
 
-        return await self.order_repo.get_all_by_client(user.id)
+        else:
+            items, total = await self.order_repo.get_orders_paginated(
+                params=params, client_id=user.id
+            )
+
+        return {
+            "items": items,
+            "total": total,
+            "limit": params.limit,
+            "offset": params.offset,
+        }
 
     async def patch_order(
         self, order_id: int, schema: OrderPatch, current_user: User

@@ -12,6 +12,18 @@ class ItemBase(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class OrderItemCreate(BaseModel):
+    item_id: int = Field(..., gt=0, description="ID товара")
+    quantity: int = Field(default=1, gt=0, le=100, description="Количество штук")
+
+
+class OrderItemRead(BaseModel):
+    quantity: int
+    item: ItemRead = Field(..., description="Данные самого товара")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class OrderBase(BaseModel):
     title: str = Field(..., min_length=3, max_length=100, description="Название заказа")
     description: Optional[str] = Field(
@@ -22,7 +34,9 @@ class OrderBase(BaseModel):
 class OrderCreate(OrderBase):
     """Схема для создания заказа"""
 
-    item_ids: List[int] = Field(..., description="Список ID товаров в заказе")
+    items: List[OrderItemCreate] = Field(
+        ..., description="Список позиций (товаров и их количества) в заказе"
+    )
     user_id: Optional[int] = Field(
         default=None, description="ID клиента, если заказ создается менеджером"
     )
@@ -48,7 +62,7 @@ class OrderRead(OrderBase):
     user_id: Optional[int] = None
     courier_id: Optional[int] = None
 
-    items: List[ItemRead]
+    items: List[OrderItemRead]
 
     volume_m3: float
     weight_kg: float
@@ -60,6 +74,9 @@ class OrderRead(OrderBase):
     @model_validator(mode="before")
     @classmethod
     def extract_from_value_objects(cls, data):
+        if hasattr(data, "order_items") and data.order_items is not None:
+            data.items = data.order_items
+
         if hasattr(data, "dimensions") and data.dimensions is not None:
             data.width = data.dimensions.width
             data.height = data.dimensions.height
@@ -89,3 +106,32 @@ class OrderPatch(BaseModel):
 
 class OrderAssignCourier(BaseModel):
     courier_id: int
+
+
+class OrderFilterParams(BaseModel):
+    limit: int = Field(
+        default=10, ge=1, le=100, description="Количество элементов на странице"
+    )
+    offset: int = Field(
+        default=0, ge=0, description="Смещение (пропустить N элементов)"
+    )
+    status: Optional[OrderStatus] = Field(
+        default=None, description="Фильтрация по статусу заказа"
+    )
+    sort_by: str = Field(
+        default="-id",
+        description="Сортировка, например: 'id' (возрастание) или '-id' (убывание)",
+    )
+
+
+class OrderPaginationResponse(BaseModel):
+    items: List[OrderRead] = Field(
+        ..., description="Список заказов на текущей странице"
+    )
+    total: int = Field(
+        ..., description="Общее количество заказов, соответствующих фильтру"
+    )
+    limit: int = Field(..., description="Текущий лимит")
+    offset: int = Field(..., description="Текущее смещение")
+
+    model_config = ConfigDict(from_attributes=True)
